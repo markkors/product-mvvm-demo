@@ -5,6 +5,8 @@ using System.ComponentModel;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using System.Windows.Input;
+using MVVM_DEMO.Commands;
 using MVVM_DEMO.Models;
 
 namespace MVVM_DEMO.ViewModels
@@ -28,6 +30,9 @@ namespace MVVM_DEMO.ViewModels
         {
             _products = new ObservableCollection<Product>();
             LoadData();
+
+            // Initialize commands
+            AddProductCommand = new RelayCommand(ExecuteAddProduct, CanExecuteAddProduct);
         }
 
         // read data
@@ -45,6 +50,29 @@ namespace MVVM_DEMO.ViewModels
 
         public string productName { get; set; }
         public int productPrice { get; set; }
+
+        // Commands
+        public ICommand AddProductCommand { get; set; }
+
+        // Command methods
+        private void ExecuteAddProduct(object? parameter)
+        {
+            Random random = new Random();
+            int randomPrice = random.Next(10, 100);
+
+            Products.Add(new Product
+            {
+                ProductName = $"Product {Products.Count + 1}",
+                Price = randomPrice
+            });
+        }
+
+        private bool CanExecuteAddProduct(object? parameter)
+        {
+            // You can add validation logic here
+            // For now, always allow adding products
+            return true;
+        }
 
     }
 }

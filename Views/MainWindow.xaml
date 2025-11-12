@@ -26,7 +26,7 @@
                     Content="Add Product"
                     Width="100px"
                     Height="25px"
-                    Click="btnAddProduct_Click" />
+                    Command="{Binding AddProductCommand}" />
             <Label Content="Selected Product Details"
                    FontWeight="Bold"
                    FontSize="16"

@@ -18,12 +18,10 @@ namespace MVVM_DEMO
     /// </summary>
     public partial class MainWindow : Window
     {
-        MainViewModel viewModel = new MainViewModel();
-
         public MainWindow()
         {
             InitializeComponent();
-            this.DataContext = viewModel;
+            // ViewModel is already set in XAML via Window.DataContext
             comboBox.SelectionChanged += ComboBox_SelectionChanged;
             // initial selection
             if (comboBox.Items.Count > 0)
@@ -35,25 +33,15 @@ namespace MVVM_DEMO
         private void ComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
         {
             // display selected product details
-            if (comboBox.SelectedItem != null)
+            if (comboBox.SelectedItem != null && DataContext is MainViewModel viewModel)
             {
-                viewModel.productName= ((Product)comboBox.SelectedItem).ProductName;
+                viewModel.productName = ((Product)comboBox.SelectedItem).ProductName;
                 viewModel.productPrice = (int)((Product)comboBox.SelectedItem).Price;
                 viewModel.OnPropertyChanged("productName");
                 viewModel.OnPropertyChanged("productPrice");
             }
-
         }
 
-        private void btnAddProduct_Click(object sender, RoutedEventArgs e)
-        {
-            // toevoegen van een product in het viewmodel
-            Product p = new Product();
-            p.ProductName = $"Product {viewModel.Products.Count + 1}";
-            // generate a random price between 10 and 100
-            Random rand = new Random();
-            p.Price = rand.Next(10, 100);
-            viewModel.Products.Add(p);
-        }
+        // btnAddProduct_Click removed - now using Command binding in XAML
     }
 }
