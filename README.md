@@ -17,15 +17,17 @@ Dit project demonstreert de implementatie van het MVVM-patroon in een WPF-applic
 
 ```
 MVVM_DEMO/
+├── Commands/
+│   └── RelayCommand.cs         # ICommand implementatie voor MVVM
 ├── Models/
-│   └── Product.cs              # Product data model
+│   └── Product.cs              # Product data model met INotifyPropertyChanged
 ├── ViewModels/
 │   └── MainViewModel.cs        # Hoofd ViewModel met business logica
 ├── Views/
 │   └── MainWindow.xaml         # Hoofd UI window
-│   └── MainWindow.xaml.cs      # Code-behind voor UI events
-├── ValueConverters/            # (Gereserveerd voor toekomstige converters)
+│   └── MainWindow.xaml.cs      # Code-behind (minimaal door command pattern)
 ├── App.xaml                    # Application configuratie
+├── App.xaml.cs                 # Application logica en data persistentie
 └── MVVM_DEMO.csproj           # Project configuratie
 ```
 
@@ -35,27 +37,43 @@ De applicatie biedt de volgende functionaliteit:
 
 1. **Productenlijst weergeven**: Een ComboBox toont alle beschikbare producten
 2. **Product details bekijken**: Bij selectie worden de naam en prijs van het product getoond
-3. **Product toevoegen**: Via een knop kunnen nieuwe producten met willekeurige prijzen worden toegevoegd
+3. **Product toevoegen**: Via een command gebonden knop kunnen nieuwe producten met willekeurige prijzen worden toegevoegd
 4. **Data Binding**: Automatische synchronisatie tussen UI en ViewModel
+5. **Data Persistentie**: Products worden automatisch opgeslagen in JSON format bij afsluiten en geladen bij opstarten
 
 ## MVVM Patroon Implementatie
 
 ### Model (`Models/Product.cs`)
 Bevat de data structuur voor een Product met eigenschappen:
 - `ProductName` (string)
-- `Price` (double)
+- `ProductPrice` (decimal)
+
+Implementeert `INotifyPropertyChanged` voor automatische UI updates bij property wijzigingen.
 
 ### View (`Views/MainWindow.xaml`)
 De gebruikersinterface met:
 - ComboBox voor productselectie
 - TextBoxes voor het weergeven van productdetails
-- Button om nieuwe producten toe te voegen
+- Button gebonden aan een ICommand om nieuwe producten toe te voegen
 
 ### ViewModel (`ViewModels/MainViewModel.cs`)
 Implementeert `INotifyPropertyChanged` en beheert:
-- `ObservableCollection<Product>` voor de productenlijst
-- Property change notifications
+- Referentie naar `App.products` (ObservableCollection in Application context)
+- `SelectedProduct` property met change notification
+- `AddProductCommand` (ICommand) voor het toevoegen van producten
 - Data initialisatie via `LoadData()`
+
+### Commands (`Commands/RelayCommand.cs`)
+Implementatie van het `ICommand` interface voor MVVM command binding:
+- Ondersteunt `Execute` en `CanExecute` delegates
+- Integreert met WPF's `CommandManager` voor automatische CanExecute updates
+
+### Application Context (`App.xaml.cs`)
+Beheert applicatie-brede state:
+- `products` ObservableCollection beschikbaar via `App.products`
+- JSON serialisatie bij applicatie afsluiten
+- JSON deserialisatie bij applicatie opstarten
+- Opslag locatie: `%AppData%\MVVM_DEMO\products.json`
 
 ## Hoe te gebruiken
 
@@ -81,30 +99,46 @@ Implementeert `INotifyPropertyChanged` en beheert:
 De applicatie gebruikt WPF data binding om de UI automatisch te synchroniseren met het ViewModel:
 ```xaml
 <ComboBox ItemsSource="{Binding Products}" />
-<TextBox Text="{Binding productName}" />
+<TextBox Text="{Binding SelectedProduct.ProductName}" />
 ```
 
 ### INotifyPropertyChanged
-Het ViewModel implementeert `INotifyPropertyChanged` om de UI te notificeren wanneer data wijzigt:
+Zowel het Model als ViewModel implementeren `INotifyPropertyChanged` om de UI te notificeren wanneer data wijzigt:
 ```csharp
-public void OnPropertyChanged(string propertyName)
+public void OnPropertyChanged([CallerMemberName] string propertyName = null)
 {
     PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
 }
 ```
 
 ### ObservableCollection
-Gebruikt voor de productenlijst om automatisch UI updates te triggeren bij toevoegen/verwijderen van items.
+Gebruikt voor de productenlijst om automatisch UI updates te triggeren bij toevoegen/verwijderen van items. De collectie wordt beheerd in de Application context (`App.products`).
+
+### ICommand Pattern
+Commands worden gebruikt voor UI acties in plaats van code-behind event handlers:
+```xaml
+<Button Command="{Binding AddProductCommand}" Content="Add Product" />
+```
+```csharp
+AddProductCommand = new RelayCommand(ExecuteAddProduct, CanExecuteAddProduct);
+```
+
+### Data Persistentie
+Products worden automatisch opgeslagen en geladen via JSON serialisatie:
+- **Bij afsluiten**: `App.OnAppExit` serialiseert de productenlijst naar JSON
+- **Bij opstarten**: `App.loadData` deserialiseert de productenlijst vanuit JSON
+- **Opslag**: `%AppData%\MVVM_DEMO\products.json`
 
 ## Toekomstige Uitbreidingen
 
 Mogelijke verbeteringen voor dit demo project:
-- Implementatie van ICommand voor button clicks (in plaats van code-behind events)
-- Toevoegen van ValueConverters voor data formatting
-- CRUD operaties (Create, Read, Update, Delete)
-- Data persistentie (database of file storage)
-- Input validatie
-- Unit tests voor ViewModels
+- Toevoegen van ValueConverters voor data formatting (bijv. currency formatting)
+- Uitbreiden van CRUD operaties (Update en Delete functionaliteit)
+- Input validatie voor nieuwe producten
+- Error handling en gebruikersfeedback verbeteren
+- Unit tests voor ViewModels en Commands
+- Dependency Injection voor loosely coupled architectuur
+- Asynchrone data operaties voor betere performance
 
 ## Licentie
 

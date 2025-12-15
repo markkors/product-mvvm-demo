@@ -9,10 +9,11 @@
 6. [Stap 3: Het Model Bouwen](#stap-3-het-model-bouwen)
 7. [Stap 4: RelayCommand Implementeren](#stap-4-relaycommand-implementeren)
 8. [Stap 5: Het ViewModel Bouwen](#stap-5-het-viewmodel-bouwen)
-9. [Stap 6: De View Bouwen](#stap-6-de-view-bouwen)
-10. [Stap 7: Testen en Uitvoeren](#stap-7-testen-en-uitvoeren)
-11. [Concepten Uitgelegd](#concepten-uitgelegd)
-12. [Veelgemaakte Fouten](#veelgemaakte-fouten)
+9. [Stap 6: Application Context en Data Persistentie](#stap-6-application-context-en-data-persistentie)
+10. [Stap 7: De View Bouwen](#stap-7-de-view-bouwen)
+11. [Stap 8: Testen en Uitvoeren](#stap-8-testen-en-uitvoeren)
+12. [Concepten Uitgelegd](#concepten-uitgelegd)
+13. [Veelgemaakte Fouten](#veelgemaakte-fouten)
 
 ---
 
@@ -24,8 +25,10 @@ Deze handleiding leidt je stap voor stap door het bouwen van een WPF-applicatie 
 - Property Change Notifications
 - ICommand Pattern
 - Separation of Concerns
+- Application Context voor gedeelde state
+- Data Persistentie met JSON serialisatie
 
-**Eindresultaat**: Een werkende applicatie waar je producten kunt bekijken, selecteren en toevoegen met automatische UI-updates.
+**Eindresultaat**: Een werkende applicatie waar je producten kunt bekijken, selecteren en toevoegen met automatische UI-updates en data persistentie tussen sessies.
 
 ---
 
@@ -459,8 +462,6 @@ namespace MVVM_DEMO.ViewModels
     public class MainViewModel : INotifyPropertyChanged
     {
 
-
-        private ObservableCollection<Product> _products;
         private Product _selectedProduct;
 
         public event PropertyChangedEventHandler PropertyChanged;
@@ -474,7 +475,6 @@ namespace MVVM_DEMO.ViewModels
 
         public MainViewModel()
         {
-            _products = new ObservableCollection<Product>();
             LoadData();
 
             // Initialize commands
@@ -482,22 +482,20 @@ namespace MVVM_DEMO.ViewModels
         }
 
         // read data
-        private  void LoadData()
+        private void LoadData()
         {
-            _products.Add(new Product { ProductName = "Product 1",ProductPrice = 10 });
-            _products.Add(new Product { ProductName = "Product 2", ProductPrice = 20 });
-            _products.Add(new Product { ProductName = "Product 3", ProductPrice = 30 });
-            Products = _products;
+            // Get the products from Application context
+            Products = App.products;
         }
 
 
         // properties
         public ObservableCollection<Product> Products
         {
-            get => _products;
+            get => App.products;
             set
             {
-                _products = value;
+                App.products = value;
                 OnPropertyChanged();
             }
         }
@@ -543,11 +541,10 @@ namespace MVVM_DEMO.ViewModels
 
 #### Private Fields
 ```csharp
-private ObservableCollection<Product> _products;
 private Product _selectedProduct;
 ```
-- **_products**: Backing field voor de productenlijst
 - **_selectedProduct**: Backing field voor het geselecteerde product
+- **Opmerking**: De productenlijst wordt nu beheerd in de Application context (`App.products`), niet in het ViewModel
 
 #### INotifyPropertyChanged
 ```csharp
@@ -567,30 +564,28 @@ public void OnPropertyChanged([CallerMemberName] string propertyName = null)
 ```csharp
 public MainViewModel()
 {
-    _products = new ObservableCollection<Product>();
     LoadData();
 
     // Initialize commands
     AddProductCommand = new RelayCommand(ExecuteAddProduct, CanExecuteAddProduct);
 }
 ```
-- Initialiseert de `ObservableCollection`
-- Laadt initiële data via `LoadData()`
+- Laadt de referentie naar de productenlijst via `LoadData()`
 - Maakt het `AddProductCommand` aan met execute en canExecute methods
+- **Belangrijk**: De ObservableCollection zelf wordt beheerd in `App.xaml.cs`
 
 #### LoadData Method
 ```csharp
 private void LoadData()
 {
-    _products.Add(new Product { ProductName = "Product 1", ProductPrice = 10 });
-    _products.Add(new Product { ProductName = "Product 2", ProductPrice = 20 });
-    _products.Add(new Product { ProductName = "Product 3", ProductPrice = 30 });
-    Products = _products;
+    // Get the products from Application context
+    Products = App.products;
 }
 ```
-- Voegt 3 testproducten toe
-- In een echte applicatie zou dit data uit een database kunnen halen
-- **Object initializer syntax**: `new Product { PropertyName = value }`
+- Haalt de productenlijst op uit de Application context
+- `App.products` wordt beheerd in `App.xaml.cs` en is applicatie-breed beschikbaar
+- De initiële data wordt geladen in `App.xaml.cs` (zie volgende sectie)
+- Dit patroon zorgt ervoor dat de data persistent is over verschillende ViewModels heen
 
 ### 5.5 Code Uitleg - Deel 3: Properties
 
@@ -598,16 +593,18 @@ private void LoadData()
 ```csharp
 public ObservableCollection<Product> Products
 {
-    get => _products;
+    get => App.products;
     set
     {
-        _products = value;
+        App.products = value;
         OnPropertyChanged();
     }
 }
 ```
 - **ObservableCollection**: Speciale collectie die automatisch de UI notificeert bij Add/Remove
 - Publieke property voor data binding vanuit XAML
+- **Direct gekoppeld aan `App.products`**: Dit zorgt ervoor dat alle ViewModels dezelfde data delen
+- Wijzigingen aan de lijst zijn applicatie-breed zichtbaar
 
 #### SelectedProduct Property
 ```csharp
@@ -694,11 +691,238 @@ products.Add(new Product()); // UI wordt WEL geüpdatet!
 
 ---
 
-## Stap 6: De View Bouwen
+## Stap 6: Application Context en Data Persistentie
+
+Voordat we de View bouwen, moeten we de Application context configureren voor data beheer en persistentie.
+
+### 6.1 App.xaml.cs Aanpassen
+
+Open `App.xaml.cs` en vervang de inhoud met:
+
+```csharp
+using MVVM_DEMO.Models;
+using System.Collections.ObjectModel;
+using System.Configuration;
+using System.Data;
+using System.IO;
+using System.Runtime.CompilerServices;
+using System.Text.Json;
+using System.Windows;
+
+namespace MVVM_DEMO
+{
+    /// <summary>
+    /// Interaction logic for App.xaml
+    /// </summary>
+    public partial class App : Application
+    {
+        public static ObservableCollection<Product> products;
+
+        public App()
+        {
+            this.Exit += OnAppExit;
+            products = new ObservableCollection<Product>();
+            loadData();
+        }
+
+        private void loadData()
+        {
+            // deserialize products from JSON file
+            try
+            {
+                string filePath = Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+                    "MVVM_DEMO",
+                    "products.json"
+                );
+                if (File.Exists(filePath))
+                {
+                    string json = File.ReadAllText(filePath);
+                    var loadedProducts = JsonSerializer.Deserialize<ObservableCollection<Product>>(json);
+                    if (loadedProducts != null)
+                    {
+                        products = loadedProducts;
+                    }
+
+                    if (products.Count == 0)
+                    {
+                        loadDemoData();
+                    }
+                }
+                else
+                {
+                    loadDemoData();
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Fout bij laden: {ex.Message}");
+            }
+        }
+
+        private void loadDemoData()
+        {
+            products.Add(new Product { ProductName = "Product 1", ProductPrice = 10 });
+            products.Add(new Product { ProductName = "Product 2", ProductPrice = 20 });
+            products.Add(new Product { ProductName = "Product 3", ProductPrice = 30 });
+        }
+
+        private void OnAppExit(object sender, ExitEventArgs e)
+        {
+            // serialize products to JSON file
+            try
+            {
+                string json = JsonSerializer.Serialize(products, new JsonSerializerOptions
+                {
+                    WriteIndented = true // Mooi geformatteerd
+                });
+
+                string filePath = Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+                    "MVVM_DEMO",
+                    "products.json"
+                );
+
+                // Zorg dat de directory bestaat
+                Directory.CreateDirectory(Path.GetDirectoryName(filePath));
+
+                File.WriteAllText(filePath, json);
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Fout bij opslaan: {ex.Message}");
+            }
+        }
+    }
+}
+```
+
+### 6.2 Code Uitleg - Application Context
+
+#### Static Products Field
+```csharp
+public static ObservableCollection<Product> products;
+```
+- **static**: Één gedeelde instantie voor de hele applicatie
+- **public**: Toegankelijk vanuit alle ViewModels via `App.products`
+- **ObservableCollection**: Automatische UI updates bij wijzigingen
+
+#### Constructor
+```csharp
+public App()
+{
+    this.Exit += OnAppExit;
+    products = new ObservableCollection<Product>();
+    loadData();
+}
+```
+- Abonneert op `Exit` event voor het opslaan bij afsluiten
+- Initialiseert de productenlijst
+- Laadt data bij opstarten
+
+#### loadData Method
+```csharp
+private void loadData()
+{
+    try
+    {
+        string filePath = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+            "MVVM_DEMO",
+            "products.json"
+        );
+        if (File.Exists(filePath))
+        {
+            string json = File.ReadAllText(filePath);
+            var loadedProducts = JsonSerializer.Deserialize<ObservableCollection<Product>>(json);
+            if (loadedProducts != null)
+            {
+                products = loadedProducts;
+            }
+
+            if (products.Count == 0)
+            {
+                loadDemoData();
+            }
+        }
+        else
+        {
+            loadDemoData();
+        }
+    }
+    catch (Exception ex)
+    {
+        MessageBox.Show($"Fout bij laden: {ex.Message}");
+    }
+}
+```
+- **Environment.SpecialFolder.ApplicationData**: Gebruikersspecifieke data folder (`%AppData%`)
+- **Path.Combine**: Platformonafhankelijk paden samenstellen
+- **File.Exists**: Controleer of het bestand bestaat
+- **JsonSerializer.Deserialize**: Converteer JSON naar objecten
+- Als het bestand niet bestaat of leeg is: laad demo data
+
+#### loadDemoData Method
+```csharp
+private void loadDemoData()
+{
+    products.Add(new Product { ProductName = "Product 1", ProductPrice = 10 });
+    products.Add(new Product { ProductName = "Product 2", ProductPrice = 20 });
+    products.Add(new Product { ProductName = "Product 3", ProductPrice = 30 });
+}
+```
+- Laadt 3 standaard producten bij eerste gebruik
+
+#### OnAppExit Method
+```csharp
+private void OnAppExit(object sender, ExitEventArgs e)
+{
+    try
+    {
+        string json = JsonSerializer.Serialize(products, new JsonSerializerOptions
+        {
+            WriteIndented = true
+        });
+
+        string filePath = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
+            "MVVM_DEMO",
+            "products.json"
+        );
+
+        Directory.CreateDirectory(Path.GetDirectoryName(filePath));
+        File.WriteAllText(filePath, json);
+    }
+    catch (Exception ex)
+    {
+        MessageBox.Show($"Fout bij opslaan: {ex.Message}");
+    }
+}
+```
+- **JsonSerializer.Serialize**: Converteer objecten naar JSON
+- **WriteIndented**: Maak de JSON leesbaar (met inspringing)
+- **Directory.CreateDirectory**: Maak de folder aan als deze niet bestaat
+- **File.WriteAllText**: Sla de JSON op in een bestand
+
+### 6.3 Waarom Application Context?
+
+**Voordelen**:
+- **Centraal data beheer**: Één plek voor applicatie-brede data
+- **Persistentie**: Data blijft behouden tussen sessies
+- **Gedeelde state**: Meerdere ViewModels kunnen dezelfde data gebruiken
+- **Lifecycle management**: Automatisch laden en opslaan
+
+**Waar wordt de data opgeslagen?**
+- Windows: `C:\Users\[Username]\AppData\Roaming\MVVM_DEMO\products.json`
+- De `AppData\Roaming` folder is bedoeld voor gebruikersspecifieke applicatiedata
+
+---
+
+## Stap 7: De View Bouwen
 
 De **View** is de gebruikersinterface in XAML. We gaan `MainWindow.xaml` aanpassen.
 
-### 6.1 MainWindow.xaml Aanpassen
+### 7.1 MainWindow.xaml Aanpassen
 
 Open `Views/MainWindow.xaml` en vervang de inhoud met:
 
@@ -751,7 +975,7 @@ Open `Views/MainWindow.xaml` en vervang de inhoud met:
 </Window>
 ```
 
-### 6.2 XAML Code Uitleg - Deel 1: Namespaces en Window
+### 7.2 XAML Code Uitleg - Deel 1: Namespaces en Window
 
 #### Namespaces
 ```xml
@@ -782,7 +1006,7 @@ public MainWindow()
 }
 ```
 
-### 6.3 XAML Code Uitleg - Deel 2: Layout
+### 7.3 XAML Code Uitleg - Deel 2: Layout
 
 #### Grid en StackPanel
 ```xml
@@ -795,7 +1019,7 @@ public MainWindow()
 - **Grid**: Basis layout container
 - **StackPanel**: Stapelt child controls verticaal (standaard)
 
-### 6.4 XAML Code Uitleg - Deel 3: ComboBox
+### 7.4 XAML Code Uitleg - Deel 3: ComboBox
 
 ```xml
 <ComboBox x:Name="comboBox"
@@ -837,7 +1061,7 @@ OneTime:    ViewModel → View (alleen bij initialisatie)
 OneWayToSource: View → ViewModel
 ```
 
-### 6.5 XAML Code Uitleg - Deel 4: Button
+### 7.5 XAML Code Uitleg - Deel 4: Button
 
 ```xml
 <Button x:Name="btnAddProduct"
@@ -863,7 +1087,7 @@ OneWayToSource: View → ViewModel
 <Button Command="{Binding AddProductCommand}" />
 ```
 
-### 6.6 XAML Code Uitleg - Deel 5: TextBoxes
+### 7.6 XAML Code Uitleg - Deel 5: TextBoxes
 
 #### Product Naam TextBox
 ```xml
@@ -902,7 +1126,7 @@ Explicit:       Alleen bij expliciete aanroep
 - Bindt aan `ProductPrice` property
 - Automatische conversie van `decimal` naar `string` en vice versa
 
-### 6.7 MainWindow.xaml.cs Aanpassen
+### 7.7 MainWindow.xaml.cs Aanpassen
 
 Open `Views/MainWindow.xaml.cs` en vervang de inhoud met:
 
@@ -967,21 +1191,21 @@ namespace MVVM_DEMO
 
 ---
 
-## Stap 7: Testen en Uitvoeren
+## Stap 8: Testen en Uitvoeren
 
-### 7.1 Build het Project
+### 8.1 Build het Project
 
 1. Druk op **Ctrl + Shift + B** of
 2. Menu: **Build > Build Solution**
 3. Controleer de **Output** window voor errors
 
-### 7.2 Project Uitvoeren
+### 8.2 Project Uitvoeren
 
 1. Druk op **F5** of
 2. Klik op de groene **Start** button
 3. De applicatie zou moeten opstarten
 
-### 7.3 Functionaliteit Testen
+### 8.3 Functionaliteit Testen
 
 #### Test 1: Producten Bekijken
 1. Open de ComboBox dropdown
@@ -1016,7 +1240,17 @@ namespace MVVM_DEMO
 3. Selecteer een ander product en terug
 4. De prijs zou behouden moeten blijven
 
-### 7.4 Troubleshooting
+#### Test 6: Data Persistentie
+1. Voeg een paar nieuwe producten toe
+2. Wijzig de naam of prijs van bestaande producten
+3. Sluit de applicatie volledig af
+4. Start de applicatie opnieuw
+5. Alle wijzigingen zouden bewaard moeten zijn!
+6. De producten worden opgeslagen in: `%AppData%\MVVM_DEMO\products.json`
+
+**Bonus**: Open het JSON bestand in Notepad om de opgeslagen data te bekijken!
+
+### 8.4 Troubleshooting
 
 #### Probleem: Applicatie start niet
 - **Oplossing**: Controleer of er build errors zijn
@@ -1574,13 +1808,14 @@ Voeg validatie toe voor product naam en prijs:
 3. Toon error messages in UI
 4. Disable "Add Product" bij ongeldige input
 
-### Opdracht 5: Persistentie
-Sla producten op in een file:
-1. Maak een `ProductRepository` class
-2. Implementeer `SaveToFile()` en `LoadFromFile()`
-3. Gebruik JSON serialization
-4. Laad data bij opstarten
-5. Sla op bij wijzigingen
+### Opdracht 5: Geavanceerde Persistentie
+Verbeter de bestaande persistentie implementatie:
+1. Maak een `ProductRepository` class voor betere separation of concerns
+2. Implementeer async `SaveToFileAsync()` en `LoadFromFileAsync()` methods
+3. Voeg auto-save toe na elke wijziging (met debouncing)
+4. Implementeer backup functionaliteit (meerdere versies bewaren)
+5. Voeg export/import functionaliteit toe (CSV of XML)
+6. Implementeer error recovery (corrupted file handling)
 
 ---
 
@@ -1594,12 +1829,16 @@ Je hebt nu een volledige WPF MVVM applicatie gebouwd! Je hebt geleerd:
 - ✅ ICommand pattern voor button logic
 - ✅ Data Binding (OneWay, TwoWay)
 - ✅ ObservableCollection voor automatische UI updates
+- ✅ Application Context voor applicatie-brede state
+- ✅ JSON serialisatie voor data persistentie
 
 ### Implementatie Details:
 - ✅ Model class met property notification
 - ✅ ViewModel met commands en observable collections
 - ✅ View met XAML data binding
 - ✅ RelayCommand voor commando implementatie
+- ✅ Application class met data beheer en lifecycle management
+- ✅ Automatisch laden en opslaan van data
 - ✅ Separation of concerns
 
 ### Best Practices:
