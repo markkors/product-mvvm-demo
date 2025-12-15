@@ -16,10 +16,10 @@ namespace MVVM_DEMO.ViewModels
     {
         
     
-        private ObservableCollection<Product> _products;
+        
         private Product _selectedProduct;
 
-        public event PropertyChangedEventHandler PropertyChanged;
+        public event PropertyChangedEventHandler ?PropertyChanged;
 
         public void OnPropertyChanged([CallerMemberName] string propertyName = null)
         {
@@ -30,7 +30,7 @@ namespace MVVM_DEMO.ViewModels
 
         public MainViewModel()
         {
-            _products = new ObservableCollection<Product>();
+            
             LoadData();
 
             // Initialize commands
@@ -40,20 +40,19 @@ namespace MVVM_DEMO.ViewModels
         // read data
         private  void LoadData()
         {
-            _products.Add(new Product { ProductName = "Product 1",ProductPrice = 10 });
-            _products.Add(new Product { ProductName = "Product 2", ProductPrice = 20 });
-            _products.Add(new Product { ProductName = "Product 3", ProductPrice = 30 });
-            Products = _products;
+
+            // get the product from app
+            Products = App.products;
         }
 
 
         // properties
         public ObservableCollection<Product> Products 
         {
-            get => _products;
+            get => App.products;
             set
             {
-                _products = value;
+                App.products = value;
                 OnPropertyChanged();
             }
         }

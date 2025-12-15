@@ -21,28 +21,10 @@ namespace MVVM_DEMO
         public MainWindow()
         {
             InitializeComponent();
-            // ViewModel is already set in XAML via Window.DataContext
-            comboBox.SelectionChanged += ComboBox_SelectionChanged;
-            // initial selection
-            if (comboBox.Items.Count > 0)
-            {
-                comboBox.SelectedIndex = 0;
-            }
+           
         }
 
-        private void ComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
-        {
-            // display selected product details
-            if (comboBox.SelectedItem != null && DataContext is MainViewModel viewModel)
-            {
-                /*viewModel.productName = ((Product)comboBox.SelectedItem).ProductName;
-                viewModel.productPrice = (int)((Product)comboBox.SelectedItem).ProductPrice;
-                viewModel.OnPropertyChanged(nameof(viewModel.productName));
-                viewModel.OnPropertyChanged(nameof(viewModel.productPrice));*/
+      
 
-            }
-        }
-
-        // btnAddProduct_Click removed - now using Command binding in XAML
     }
 }
