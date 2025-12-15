@@ -21,6 +21,7 @@
                       Margin="10"
                       VerticalAlignment="Top"
                       ItemsSource="{Binding Products}"
+                      SelectedItem="{Binding SelectedProduct, Mode=TwoWay}"
                       DisplayMemberPath="ProductName" />
             <Button x:Name="btnAddProduct"
                     Content="Add Product"
@@ -34,12 +35,12 @@
             <TextBox x:Name="txtProductName"
                      Width="200"
                      Height="30"
-                     Text="{Binding productName}" 
+                     Text="{Binding SelectedProduct.ProductName, UpdateSourceTrigger=PropertyChanged}" 
                      />
             <TextBox x:Name="txtProductPrice"
                      Width="200"
                      Height="30"
-                     Text="{Binding productPrice}" />
+                     Text="{Binding SelectedProduct.ProductPrice, UpdateSourceTrigger=PropertyChanged}" />
         </StackPanel>
     </Grid>
 </Window>

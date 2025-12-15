@@ -35,10 +35,11 @@ namespace MVVM_DEMO
             // display selected product details
             if (comboBox.SelectedItem != null && DataContext is MainViewModel viewModel)
             {
-                viewModel.productName = ((Product)comboBox.SelectedItem).ProductName;
-                viewModel.productPrice = (int)((Product)comboBox.SelectedItem).Price;
-                viewModel.OnPropertyChanged("productName");
-                viewModel.OnPropertyChanged("productPrice");
+                /*viewModel.productName = ((Product)comboBox.SelectedItem).ProductName;
+                viewModel.productPrice = (int)((Product)comboBox.SelectedItem).ProductPrice;
+                viewModel.OnPropertyChanged(nameof(viewModel.productName));
+                viewModel.OnPropertyChanged(nameof(viewModel.productPrice));*/
+
             }
         }
 

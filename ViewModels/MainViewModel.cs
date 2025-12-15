@@ -1,13 +1,14 @@
-﻿using System;
+﻿using MVVM_DEMO.Commands;
+using MVVM_DEMO.Models;
+using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Linq;
+using System.Runtime.CompilerServices;
 using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Input;
-using MVVM_DEMO.Commands;
-using MVVM_DEMO.Models;
 
 namespace MVVM_DEMO.ViewModels
 {
@@ -16,10 +17,11 @@ namespace MVVM_DEMO.ViewModels
         
     
         private ObservableCollection<Product> _products;
+        private Product _selectedProduct;
 
-        public event PropertyChangedEventHandler? PropertyChanged;
+        public event PropertyChangedEventHandler PropertyChanged;
 
-        public void OnPropertyChanged(string propertyName)
+        public void OnPropertyChanged([CallerMemberName] string propertyName = null)
         {
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
         }
@@ -38,18 +40,33 @@ namespace MVVM_DEMO.ViewModels
         // read data
         private  void LoadData()
         {
-            _products.Add(new Product { ProductName = "Product 1", Price = 10.0 });
-            _products.Add(new Product { ProductName = "Product 2", Price = 20.0 });
-            _products.Add(new Product { ProductName = "Product 3", Price = 30.0 });
+            _products.Add(new Product { ProductName = "Product 1",ProductPrice = 10 });
+            _products.Add(new Product { ProductName = "Product 2", ProductPrice = 20 });
+            _products.Add(new Product { ProductName = "Product 3", ProductPrice = 30 });
             Products = _products;
         }
 
 
         // properties
-        public ObservableCollection<Product> Products { get; set; }
+        public ObservableCollection<Product> Products 
+        {
+            get => _products;
+            set
+            {
+                _products = value;
+                OnPropertyChanged();
+            }
+        }
 
-        public string productName { get; set; }
-        public int productPrice { get; set; }
+        public Product SelectedProduct
+        {
+            get => _selectedProduct;
+            set
+            {
+                _selectedProduct = value;
+                OnPropertyChanged();
+            }
+        }
 
         // Commands
         public ICommand AddProductCommand { get; set; }
@@ -63,7 +80,7 @@ namespace MVVM_DEMO.ViewModels
             Products.Add(new Product
             {
                 ProductName = $"Product {Products.Count + 1}",
-                Price = randomPrice
+                ProductPrice = randomPrice
             });
         }
 
